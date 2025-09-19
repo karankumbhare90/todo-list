@@ -13,11 +13,27 @@ export default function Dashboard() {
   const [editingTodo, setEditingTodo] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const itemsPerPage = 12;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredTodos, setFilteredTodos] = useState([]);
 
+  const itemsPerPage = 12;
   const token = localStorage.getItem("token");
 
-  // Fetch todos from server with pagination
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      setCurrentPage(1); // Reset page when searching
+      fetchTodos(1);
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery]);
+
+  // Fetch todos whenever page changes
+  useEffect(() => {
+    fetchTodos(currentPage);
+  }, [currentPage]);
+
+  // Fetch function
   const fetchTodos = async (page = 1) => {
     setLoading(true);
     try {
@@ -35,18 +51,17 @@ export default function Dashboard() {
       if (!result.success) throw new Error(result.message || "Failed to fetch todos");
 
       setTodos(result.todos || []);
+      setFilteredTodos(result.todos || []); // update filtered list initially
       setCurrentPage(result.page);
       setTotalPages(result.totalPages);
     } catch (error) {
       console.error("Error fetching todos:", error.message);
+      setTodos([]);
+      setFilteredTodos([]);
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchTodos(currentPage);
-  }, [currentPage]);
 
   const openEditModal = (todo) => {
     setEditingTodo(todo);
@@ -77,8 +92,7 @@ export default function Dashboard() {
       const result = await response.json();
       if (!result.success) throw new Error(result.message || "Failed to save todo");
 
-      // Refresh current page after add/update
-      fetchTodos(currentPage);
+      fetchTodos(currentPage, searchQuery); // Refresh current page
 
       setTodoLabel("");
       setTodoStatus("Pending");
@@ -89,6 +103,23 @@ export default function Dashboard() {
       alert(error.message);
     }
   };
+
+  const filterTodo = (e) => {
+    const query = e.target.value.toLowerCase();
+    setSearchQuery(query);
+
+    if (!query) {
+      setFilteredTodos(todos); // show all todos if search is empty
+      return;
+    }
+
+    const filtered = todos.filter((todo) =>
+      todo.name.toLowerCase().includes(query)
+    );
+    setFilteredTodos(filtered);
+  };
+
+
 
   const handleDeleteTodo = async (id) => {
     if (!window.confirm("Are you sure you want to delete this todo?")) return;
@@ -104,8 +135,7 @@ export default function Dashboard() {
       const result = await response.json();
       if (!result.success) throw new Error(result.message || "Failed to delete todo");
 
-      // Refresh current page after delete
-      fetchTodos(currentPage);
+      fetchTodos(currentPage, searchQuery); // Refresh current page
     } catch (error) {
       console.error("Error deleting todo:", error.message);
       alert(error.message);
@@ -115,9 +145,13 @@ export default function Dashboard() {
   return (
     <div className="w-full h-screen py-8 lg:py-12">
       <div className="container mx-auto sm:px-0 px-4">
-        {/* Heading and Add Button */}
-        <div className="flex justify-between items-center mb-6">
+        {/* Heading and Controls */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-3">
           <h1 className="text-3xl font-bold">Todo List</h1>
+
+          {/* Search Input */}
+
+          {/* Add Todo Button */}
           <button
             onClick={() => setShowModal(true)}
             className="bg-black hover:bg-opacity-75 text-white text-base p-1.5 lg:p-2.5 transition flex items-center justify-center gap-1"
@@ -125,6 +159,15 @@ export default function Dashboard() {
             <GoPlus fontSize={20} />
             Add New Todo
           </button>
+        </div>
+        <div className="w-full flex items-center justify-end">
+          <input
+            type="text"
+            placeholder="Search by label..."
+            className="form-input max-w-sm flex items-center justify-end"
+            value={searchQuery}
+            onChange={filterTodo}
+          />
         </div>
 
         {/* Modal */}
@@ -180,17 +223,12 @@ export default function Dashboard() {
 
         {/* Todo List Table */}
         <div className="mt-6 lg:pb-12 pb-8">
-          {loading ? (
-            <p className="text-gray-500">Loading todos...</p>
-          ) : todos.length === 0 ? (
-            <p className="text-gray-500">No todos added yet.</p>
+          {filteredTodos.length === 0 && !loading ? (
+            <p className="text-gray-500">No todos found.</p>
           ) : (
             <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-center justify-center gap-5">
-              {todos.map((todo) => (
-                <div
-                  key={todo._id}
-                  className="w-full flex items-center justify-between p-2.5 bg-gray-100 hover:bg-gray-200"
-                >
+              {filteredTodos.map((todo) => (
+                <div key={todo._id} className="w-full flex items-center justify-between p-2.5 bg-gray-100 hover:bg-gray-200">
                   <div className="flex flex-col items-start gap-2.5">
                     <span className="w-full text-base font-medium">{todo.name}</span>
                     <span
@@ -219,12 +257,13 @@ export default function Dashboard() {
             </div>
           )}
 
+
           {/* Pagination Controls */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-4 mt-8">
               <button
                 disabled={currentPage === 1}
-                onClick={() => fetchTodos(currentPage - 1)}
+                onClick={() => setCurrentPage((prev) => prev - 1)}
                 className="p-3 bg-black hover:bg-opacity-75 disabled:hover:bg-opacity-100 disabled:opacity-50 rounded-none text-white"
               >
                 <MdOutlineArrowBackIos />
@@ -234,7 +273,7 @@ export default function Dashboard() {
               </span>
               <button
                 disabled={currentPage === totalPages}
-                onClick={() => fetchTodos(currentPage + 1)}
+                onClick={() => setCurrentPage((prev) => prev + 1)}
                 className="p-3 bg-black hover:bg-opacity-75 disabled:hover:bg-opacity-100 disabled:opacity-50 rounded-none text-white"
               >
                 <MdOutlineArrowForwardIos />

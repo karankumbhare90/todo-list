@@ -12,21 +12,25 @@ connectDB();
 
 // Middlewares
 app.use(express.json());
-app.use(cors());
+app.use(
+    cors({
+        origin: "http://localhost:5173",
+    })
+);
 
 // Routes
 app.use('/api', route);
 
-app.get('/', 
-    asyncHandler(async(req, res) => {
+app.get('/',
+    asyncHandler(async (req, res) => {
         return res.json({
-            success : true, 
-            status: 201, 
-            message : 'Hello Developer !'
+            success: true,
+            status: 201,
+            message: 'Hello Developer !'
         })
     })
 )
 
-app.listen(PORT, ()=>{
+app.listen(PORT, () => {
     console.log(`Server is running on PORT : ${PORT}`);
 })
