@@ -42,3 +42,9 @@ Run the Project
 ```
 nodemon
 ```
+
+#### (Note: Before running project check the environment variables)
+#### Required .env variables
+* PORT (backend)
+* MONGO_URI (backend)
+* JWT_SECRET (backend)
