@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { FaEdit, FaTrash } from "react-icons/fa";
 import backendURL from "../constant";
-import { MdOutlineArrowBackIos } from "react-icons/md";
+import { MdOutlineArrowBackIos, MdOutlineArrowForwardIos } from "react-icons/md";
 import { GoPlus } from "react-icons/go";
-import { MdOutlineArrowForwardIos } from "react-icons/md";
 
 export default function Dashboard() {
   const [todos, setTodos] = useState([]);
@@ -13,24 +12,31 @@ export default function Dashboard() {
   const [todoStatus, setTodoStatus] = useState("Pending");
   const [editingTodo, setEditingTodo] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 12;
 
   const token = localStorage.getItem("token");
 
-  // Fetch todos
-  const fetchTodos = async () => {
+  // Fetch todos from server with pagination
+  const fetchTodos = async (page = 1) => {
     setLoading(true);
     try {
-      const response = await fetch(`${backendURL}/todo/get-all`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(
+        `${backendURL}/todo/get-all?page=${page}&limit=${itemsPerPage}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
       const result = await response.json();
       if (!result.success) throw new Error(result.message || "Failed to fetch todos");
+
       setTodos(result.todos || []);
+      setCurrentPage(result.page);
+      setTotalPages(result.totalPages);
     } catch (error) {
       console.error("Error fetching todos:", error.message);
     } finally {
@@ -39,8 +45,8 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchTodos();
-  }, []);
+    fetchTodos(currentPage);
+  }, [currentPage]);
 
   const openEditModal = (todo) => {
     setEditingTodo(todo);
@@ -69,16 +75,10 @@ export default function Dashboard() {
       });
 
       const result = await response.json();
-
       if (!result.success) throw new Error(result.message || "Failed to save todo");
 
-      if (editingTodo) {
-        setTodos((prev) =>
-          prev.map((t) => (t._id === editingTodo._id ? result.todo : t))
-        );
-      } else {
-        setTodos((prev) => [...prev, result.todo]);
-      }
+      // Refresh current page after add/update
+      fetchTodos(currentPage);
 
       setTodoLabel("");
       setTodoStatus("Pending");
@@ -104,17 +104,13 @@ export default function Dashboard() {
       const result = await response.json();
       if (!result.success) throw new Error(result.message || "Failed to delete todo");
 
-      setTodos((prev) => prev.filter((t) => t._id !== id));
+      // Refresh current page after delete
+      fetchTodos(currentPage);
     } catch (error) {
       console.error("Error deleting todo:", error.message);
       alert(error.message);
     }
   };
-
-  // Pagination calculations
-  const totalPages = Math.ceil(todos.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentTodos = todos.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="w-full h-screen py-8 lg:py-12">
@@ -158,7 +154,7 @@ export default function Dashboard() {
                     <option value="Completed">Completed</option>
                   </select>
 
-                  <div className="flex justify-end gap-2 ">
+                  <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       className="bg-none w-1/3 button text-black transition border"
@@ -189,65 +185,61 @@ export default function Dashboard() {
           ) : todos.length === 0 ? (
             <p className="text-gray-500">No todos added yet.</p>
           ) : (
-            <>
-              {/* Todo Rows */}
-              <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-center justify-center gap-5">
-                {currentTodos.map((todo) => (
-                  <div
-                    key={todo._id}
-                    className="w-full flex items-center justify-between p-2.5 bg-gray-100 hover:bg-gray-200"
-                  >
-                    {/* odd:bg-white even:bg-gray-100 */}
-                    <div className="flex flex-col items-start gap-2.5">
-                      <span className="w-full text-base font-medium">{todo.name}</span>
-                      <span
-                        className={`text-white font-medium w-full ${todo.status === "Pending"
-                          ? "text-yellow-500"
-                          : todo.status === "In Progress"
-                            ? "text-blue-500"
-                            : "text-green-500"
-                          }`}
-                      >
-                        {todo.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-center gap-2.5">
-                      <FaEdit
-                        className="text-blue-600 cursor-pointer"
-                        onClick={() => openEditModal(todo)}
-                      />
-                      <FaTrash
-                        className="text-red-600 cursor-pointer"
-                        onClick={() => handleDeleteTodo(todo._id)}
-                      />
-                    </div>
+            <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-center justify-center gap-5">
+              {todos.map((todo) => (
+                <div
+                  key={todo._id}
+                  className="w-full flex items-center justify-between p-2.5 bg-gray-100 hover:bg-gray-200"
+                >
+                  <div className="flex flex-col items-start gap-2.5">
+                    <span className="w-full text-base font-medium">{todo.name}</span>
+                    <span
+                      className={`font-medium w-full ${todo.status === "Pending"
+                        ? "text-yellow-500"
+                        : todo.status === "In Progress"
+                          ? "text-blue-500"
+                          : "text-green-500"
+                        }`}
+                    >
+                      {todo.status}
+                    </span>
                   </div>
-                ))}
-              </div>
-
-              {/* Pagination Controls */}
-              {todos.length > itemsPerPage && (
-                <div className="flex justify-center items-center gap-4 mt-8">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((prev) => prev - 1)}
-                    className="p-3 bg-black hover:bg-opacity-75 disabled:hover:bg-opacity-100 disabled:opacity-50 rounded-none text-white"
-                  >
-                    <MdOutlineArrowBackIos />
-                  </button>
-                  <span>
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((prev) => prev + 1)}
-                    className="p-3 bg-black hover:bg-opacity-75 disabled:hover:bg-opacity-100 disabled:opacity-50 rounded-none text-white"
-                  >
-                    <MdOutlineArrowForwardIos />
-                  </button>
+                  <div className="flex items-center justify-center gap-2.5">
+                    <FaEdit
+                      className="text-blue-600 cursor-pointer"
+                      onClick={() => openEditModal(todo)}
+                    />
+                    <FaTrash
+                      className="text-red-600 cursor-pointer"
+                      onClick={() => handleDeleteTodo(todo._id)}
+                    />
+                  </div>
                 </div>
-              )}
-            </>
+              ))}
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-4 mt-8">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => fetchTodos(currentPage - 1)}
+                className="p-3 bg-black hover:bg-opacity-75 disabled:hover:bg-opacity-100 disabled:opacity-50 rounded-none text-white"
+              >
+                <MdOutlineArrowBackIos />
+              </button>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => fetchTodos(currentPage + 1)}
+                className="p-3 bg-black hover:bg-opacity-75 disabled:hover:bg-opacity-100 disabled:opacity-50 rounded-none text-white"
+              >
+                <MdOutlineArrowForwardIos />
+              </button>
+            </div>
           )}
         </div>
       </div>
