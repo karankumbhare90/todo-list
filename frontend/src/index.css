@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components{
+  .form-heading{
+    @apply text-2xl font-bold text-center mb-4;
+  }
+
+  form{
+    @apply bg-white shadow-lg rounded-none p-5 w-full max-w-md;
+  }
+
+  .form{
+    @apply bg-white shadow-lg rounded-none p-5 w-full max-w-md;
+  }
+
+  .form-input{
+    @apply w-full p-2 text-base border rounded-none focus:outline-none focus:ring-2 focus:ring-blue-400;
+  }
+
+  .button{
+    @apply w-full hover:bg-opacity-80 p-2 rounded-none;
+  }
+}
